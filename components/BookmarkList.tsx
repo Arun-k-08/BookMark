@@ -7,7 +7,9 @@ export default function BookmarkList() {
   const [bookmarks, setBookmarks] = useState<any[]>([]);
 
   const fetchBookmarks = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return;
 
     const { data } = await supabase
@@ -22,17 +24,24 @@ export default function BookmarkList() {
   useEffect(() => {
     fetchBookmarks();
 
+    // 🔹 1. REALTIME (best effort)
     const channel = supabase
-      .channel("realtime-bookmarks")
+      .channel("bookmark-changes")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "bookmarks" },
-        fetchBookmarks
+        () => fetchBookmarks(),
       )
       .subscribe();
 
+    // 🔹 2. POLLING FALLBACK (guaranteed)
+    const interval = setInterval(() => {
+      fetchBookmarks();
+    }, 2000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, []);
 
@@ -42,39 +51,29 @@ export default function BookmarkList() {
 
   return (
     <div className="space-y-3">
-
       {bookmarks.length === 0 && (
-        <div className="text-center text-gray-500 py-8">
-          No bookmarks yet — add your first one 🚀
-        </div>
+        <p className="text-gray-500 text-center">No bookmarks yet</p>
       )}
 
       {bookmarks.map((b) => (
         <div
           key={b.id}
-          className="bg-white border rounded-xl p-4 flex justify-between items-center shadow-sm hover:shadow-md transition"
+          className="border rounded-xl p-4 flex justify-between items-center"
         >
           <div>
             <a
               href={b.url}
               target="_blank"
-              className="font-semibold text-blue-600 hover:underline"
+              className="text-blue-600 font-semibold"
             >
               {b.title}
             </a>
-
-            <div className="text-xs text-gray-500 break-all">
-              {b.url}
-            </div>
+            <div className="text-xs text-gray-500">{b.url}</div>
           </div>
 
-          <button
-            onClick={() => deleteBookmark(b.id)}
-            className="bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1 rounded-lg"
-          >
+          <button onClick={() => deleteBookmark(b.id)} className="text-red-500">
             Delete
           </button>
-
         </div>
       ))}
     </div>
